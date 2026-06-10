@@ -45,6 +45,26 @@ Deno.test("ตะกร้าว่าง / ไม่รู้จักเมน
   assertThrows(() => priceOrder([{ menuItemId: "soldout", qty: 1, optionItemIds: [] }], menu), PricingError, "ITEM_UNAVAILABLE");
 });
 
+Deno.test("จำนวนเกิน 99 / ไม่เป็นจำนวนเต็ม → BAD_QTY", () => {
+  assertThrows(() => priceOrder([{ menuItemId: "tea", qty: 100, optionItemIds: [] }], menu), PricingError, "BAD_QTY");
+  assertThrows(() => priceOrder([{ menuItemId: "tea", qty: 1.5, optionItemIds: [] }], menu), PricingError, "BAD_QTY");
+});
+
+Deno.test("option ที่ของหมด → OPTION_UNAVAILABLE และราคา delta ทศนิยมปัดถูก", () => {
+  const m: MenuIndex = {
+    items: { tea: { name: "ชาเย็น", basePrice: 25, isAvailable: true, groupIds: ["sweet"] } },
+    groups: { sweet: { name: "หวาน", isRequired: false, maxSelect: 3 } },
+    options: {
+      half: { groupId: "sweet", name: "หวานครึ่ง", priceDelta: 0.5, isAvailable: true },
+      gone: { groupId: "sweet", name: "หมด", priceDelta: 0, isAvailable: false },
+    },
+  };
+  assertThrows(() => priceOrder([{ menuItemId: "tea", qty: 1, optionItemIds: ["gone"] }], m), PricingError, "OPTION_UNAVAILABLE");
+  const r = priceOrder([{ menuItemId: "tea", qty: 3, optionItemIds: ["half"] }], m);
+  assertEquals(r.items[0].unitPrice, 25.5);
+  assertEquals(r.total, 76.5);   // 25.5 * 3 ไม่มี float drift
+});
+
 Deno.test("ไม่เลือกกลุ่มบังคับ → REQUIRED_GROUP_MISSING", () => {
   assertThrows(
     () => priceOrder([{ menuItemId: "krapao", qty: 1, optionItemIds: ["beef"] }], menu),

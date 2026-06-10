@@ -30,7 +30,7 @@ export function priceOrder(cart: CartItem[], menu: MenuIndex): { items: PricedIt
     const item = menu.items[c.menuItemId];
     if (!item) throw new PricingError("UNKNOWN_ITEM");
     if (!item.isAvailable) throw new PricingError("ITEM_UNAVAILABLE");
-    if (!Number.isInteger(c.qty) || c.qty < 1) throw new PricingError("BAD_QTY");
+    if (!Number.isInteger(c.qty) || c.qty < 1 || c.qty > 99) throw new PricingError("BAD_QTY");
 
     const perGroup = new Map<string, number>();
     let unitPrice = item.basePrice;
