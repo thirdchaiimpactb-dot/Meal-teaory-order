@@ -57,3 +57,7 @@ create policy staff_write on menu_items for all to authenticated using (true) wi
 create policy staff_write on option_groups for all to authenticated using (true) with check (true);
 create policy staff_write on option_items for all to authenticated using (true) with check (true);
 create policy staff_write on menu_item_option_groups for all to authenticated using (true) with check (true);
+
+-- สิทธิ์ระดับตาราง (RLS เป็นตัวกรองชั้นบน): ลูกค้า anon อ่านเมนู, staff เขียนได้
+grant select on menu_categories, menu_items, option_groups, option_items, menu_item_option_groups to anon, authenticated;
+grant insert, update, delete on menu_categories, menu_items, option_groups, option_items, menu_item_option_groups to authenticated;
