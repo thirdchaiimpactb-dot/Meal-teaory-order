@@ -45,3 +45,18 @@ Deno.test("สลิปเก่ากว่า 24 ชม. หรืออยู
 Deno.test("ธนาคารไม่ส่ง receiverProxy มาเลย → ยอมรับ (ตรวจไม่ได้ ไม่บล็อกลูกค้า)", () => {
   assertEquals(checkSlip({ ...base, receiverProxy: undefined }, { total: 165 }, "0812345678", NOW), { ok: true });
 });
+
+Deno.test("mask ด้วย * (SCB/KBank) → เทียบได้เหมือน x", () => {
+  assertEquals(checkSlip({ ...base, receiverProxy: "081-***-5678" }, { total: 165 }, "0812345678", NOW), { ok: true });
+  assertEquals(
+    checkSlip({ ...base, receiverProxy: "089-***-9999" }, { total: 165 }, "0812345678", NOW),
+    { ok: false, reason: "WRONG_RECEIVER" },
+  );
+});
+
+Deno.test("transDate อ่านไม่ออก → SLIP_TOO_OLD (ไม่ผ่านเงียบๆ)", () => {
+  assertEquals(
+    checkSlip({ ...base, transDate: "not-a-date" }, { total: 165 }, "0812345678", NOW),
+    { ok: false, reason: "SLIP_TOO_OLD" },
+  );
+});

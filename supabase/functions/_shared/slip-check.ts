@@ -15,11 +15,11 @@ const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
 
 // เทียบ proxy แบบทน mask: ตัดทุกอย่างที่ไม่ใช่ตัวเลข/x แล้วเทียบตำแหน่งที่เป็นตัวเลขทั้งคู่
 function proxyMatches(masked: string, full: string): boolean {
-  const m = masked.replace(/[^0-9xX]/g, "").toLowerCase();
+  const m = masked.replace(/[^0-9xX*]/g, "").toLowerCase();  // บางธนาคาร mask ด้วย * แทน x
   const f = full.replace(/\D/g, "");
   if (m.length !== f.length) return false;
   for (let i = 0; i < m.length; i++) {
-    if (m[i] !== "x" && m[i] !== f[i]) return false;
+    if (m[i] !== "x" && m[i] !== "*" && m[i] !== f[i]) return false;
   }
   return true;
 }

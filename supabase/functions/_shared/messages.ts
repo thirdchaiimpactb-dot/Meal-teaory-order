@@ -15,7 +15,8 @@ export type MsgOrder = {
 
 function pickupLabel(o: Pick<MsgOrder, "pickup_type" | "pickup_time">): string {
   if (o.pickup_type === "ASAP") return "รับเลย";
-  const t = new Date(o.pickup_time!).toLocaleTimeString("th-TH", {
+  if (!o.pickup_time) return "นัดรับ (ไม่ระบุเวลา)";
+  const t = new Date(o.pickup_time).toLocaleTimeString("th-TH", {
     hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok",
   });
   return `นัดรับ ${t} น.`;
