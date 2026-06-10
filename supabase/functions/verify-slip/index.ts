@@ -30,13 +30,26 @@ Deno.serve(async (req) => {
       slip = body.devSlip;
     } else {
       if (!body.imageBase64) throw new HttpError(400, "IMAGE_REQUIRED");
-      const bytes = Uint8Array.from(atob(body.imageBase64), (c) => c.charCodeAt(0));
+      let bytes: Uint8Array;
+      try {
+        bytes = Uint8Array.from(atob(body.imageBase64), (c) => c.charCodeAt(0));
+      } catch {
+        throw new HttpError(422, "SLIP_UNREADABLE");
+      }
       slipPath = `${order.id}.jpg`;
       const { error: ue } = await db.storage.from("slips").upload(slipPath, bytes, {
         contentType: "image/jpeg", upsert: true,
       });
       if (ue) throw ue;
-      slip = await verifySlipImage(body.imageBase64, Deno.env.get("EASYSLIP_TOKEN")!);
+      try {
+        slip = await verifySlipImage(body.imageBase64, Deno.env.get("EASYSLIP_TOKEN")!);
+      } catch (e) {
+        // อ่านสลิปไม่ออกเป็นเรื่องฝั่งลูกค้า (รูปเบลอ/ไม่ใช่สลิป) → 422 ให้ LIFF บอกให้ถ่ายใหม่
+        if (e instanceof Error && e.message === "SLIP_UNREADABLE") {
+          throw new HttpError(422, "SLIP_UNREADABLE");
+        }
+        throw e;
+      }
     }
 
     // ตัดสิน
@@ -45,14 +58,17 @@ Deno.serve(async (req) => {
     if (!verdict.ok) return json({ error: verdict.reason }, 422);
 
     // PAID (unique slip_trans_ref กันสลิปซ้ำ — ชนแล้ว Postgres ตอบ 23505)
-    const { error: pe } = await db.from("orders").update({
+    const { data: paidRow, error: pe } = await db.from("orders").update({
       status: "PAID", paid_at: new Date().toISOString(),
       slip_trans_ref: slip.transRef, slip_image_path: slipPath,
-    }).eq("id", order.id).eq("status", "PENDING_PAYMENT");
+    }).eq("id", order.id).eq("status", "PENDING_PAYMENT")
+      .select("id").maybeSingle();
     if (pe) {
       if ((pe as { code?: string }).code === "23505") return json({ error: "DUPLICATE_SLIP" }, 422);
       throw pe;
     }
+    // 0 แถว = มีคนจ่ายตัดหน้าไปแล้วระหว่างที่เราตรวจ → อย่าตอบ PAID ปลอม
+    if (!paidRow) throw new HttpError(409, "WRONG_STATUS");
 
     // แจ้งกลุ่มร้าน (backup ของหน้าจอ) — พังก็ไม่ล้ม flow
     if (settings!.line_group_id) {
