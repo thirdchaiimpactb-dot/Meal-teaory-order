@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { json, errorResponse, HttpError, CORS } from "../_shared/http.ts";
-import { verifyLineIdToken, pushText } from "../_shared/line.ts";
+import { resolveLineUser, pushText } from "../_shared/line.ts";
 import { verifySlipImage } from "../_shared/easyslip.ts";
 import { checkSlip, type SlipData } from "../_shared/slip-check.ts";
 import { msgNewOrderForShop } from "../_shared/messages.ts";
@@ -11,14 +11,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body: Body = await req.json();
-    const dev = Deno.env.get("DEV_BYPASS_LINE") === "1";
-    const profile = dev && body.idToken.startsWith("dev:")
-      ? { sub: body.idToken.slice(4) }
-      : await verifyLineIdToken(body.idToken, Deno.env.get("LINE_LOGIN_CHANNEL_ID")!);
+    const profile = await resolveLineUser(body.idToken);
 
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: order } = await db.from("orders")
-      .select("id,order_no,total,status,customer_id,pickup_type,pickup_time")
+      .select("id,order_no,total,status,customer_id,pickup_type,pickup_time,promptpay_id")
       .eq("id", body.order_id).single();
     if (!order || order.customer_id !== profile.sub) throw new HttpError(404, "ORDER_NOT_FOUND");
     if (order.status !== "PENDING_PAYMENT") throw new HttpError(409, "WRONG_STATUS");
@@ -26,6 +23,7 @@ Deno.serve(async (req) => {
     // อ่านสลิป
     let slip: SlipData;
     let slipPath: string | null = null;
+    const dev = Deno.env.get("DEV_BYPASS_LINE") === "1";
     if (dev && body.devSlip) {
       slip = body.devSlip;
     } else {
@@ -52,9 +50,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ตัดสิน
-    const { data: settings } = await db.from("shop_settings").select("*").eq("id", 1).single();
-    const verdict = checkSlip(slip, { total: Number(order.total) }, settings!.promptpay_id);
+    // ตัดสิน — ใช้ promptpay_id ที่บันทึกไว้ตอนสร้างออเดอร์ ไม่ใช่ค่าปัจจุบันใน settings
+    const verdict = checkSlip(slip, { total: Number(order.total) }, order.promptpay_id);
     if (!verdict.ok) return json({ error: verdict.reason }, 422);
 
     // PAID (unique slip_trans_ref กันสลิปซ้ำ — ชนแล้ว Postgres ตอบ 23505)
@@ -70,8 +67,10 @@ Deno.serve(async (req) => {
     // 0 แถว = มีคนจ่ายตัดหน้าไปแล้วระหว่างที่เราตรวจ → อย่าตอบ PAID ปลอม
     if (!paidRow) throw new HttpError(409, "WRONG_STATUS");
 
-    // แจ้งกลุ่มร้าน (backup ของหน้าจอ) — พังก็ไม่ล้ม flow
-    if (settings!.line_group_id) {
+    // แจ้งกลุ่มร้าน — พังก็ไม่ล้ม flow (pushText จัดการ error ภายในตัวเอง)
+    const { data: settings } = await db.from("shop_settings")
+      .select("line_group_id").eq("id", 1).single();
+    if (settings?.line_group_id) {
       const { data: items } = await db.from("order_items")
         .select("name_snapshot,qty,options,note").eq("order_id", order.id);
       const text = msgNewOrderForShop({
@@ -83,7 +82,7 @@ Deno.serve(async (req) => {
           nameSnapshot: i.name_snapshot, qty: i.qty, options: i.options, note: i.note,
         })),
       });
-      await pushText(settings!.line_group_id, text, Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN")!);
+      await pushText(settings.line_group_id, text, Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN")!);
     }
 
     return json({ ok: true, status: "PAID" });

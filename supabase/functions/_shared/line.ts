@@ -30,3 +30,10 @@ export async function pushText(
   // การแจ้งเตือนพังต้องไม่ทำให้ flow หลักล้ม — log แล้วไปต่อ
   if (!res.ok) console.error(`LINE push failed: ${res.status} ${await res.text()}`);
 }
+
+export async function resolveLineUser(idToken: string, fetchFn: typeof fetch = fetch): Promise<LineProfile> {
+  if (Deno.env.get("DEV_BYPASS_LINE") === "1" && idToken.startsWith("dev:")) {
+    return { sub: idToken.slice(4), name: "Dev User" };
+  }
+  return await verifyLineIdToken(idToken, Deno.env.get("LINE_LOGIN_CHANNEL_ID")!, fetchFn);
+}
