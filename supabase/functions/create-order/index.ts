@@ -34,6 +34,19 @@ Deno.serve(async (req) => {
     const body: Body = await req.json();
     if (!body.idToken || !Array.isArray(body.items)) throw new HttpError(400, "BAD_REQUEST");
     if (body.pickup_type === "SCHEDULED" && !body.pickup_time) throw new HttpError(400, "PICKUP_TIME_REQUIRED");
+    if (body.items.length > 20) throw new HttpError(400, "TOO_MANY_ITEMS");
+    if (body.pickup_time) {
+      const pt = Date.parse(body.pickup_time);
+      if (Number.isNaN(pt)) throw new HttpError(400, "PICKUP_TIME_INVALID");
+      const now = Date.now();
+      // กันเวลาย้อนหลัง (เผื่อ clock skew 5 นาที) และจองล่วงหน้าได้ไม่เกิน 2 วัน
+      if (pt < now - 5 * 60 * 1000 || pt > now + 2 * 24 * 60 * 60 * 1000) {
+        throw new HttpError(400, "PICKUP_TIME_INVALID");
+      }
+    }
+    for (const it of body.items) {
+      if (it.note && it.note.length > 200) throw new HttpError(400, "NOTE_TOO_LONG");
+    }
 
     const profile = await resolveLineUser(body.idToken);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -103,7 +116,14 @@ Deno.serve(async (req) => {
       note: i.note ?? null,
       line_total: i.lineTotal,
     })));
-    if (ie) throw ie;
+    if (ie) {
+      // สองสเต็ปนี้ไม่ได้อยู่ใน transaction เดียวกัน: ถ้า insert รายการล้มเหลว
+      // ลบหัวออเดอร์ทิ้งทันที กันออเดอร์กำพร้าที่ลูกค้าจ่ายได้แต่ครัวไม่เห็นรายการ
+      // (ความเสี่ยงคงเหลือ: delete ล้มเหลวซ้อนอีกชั้น → ออเดอร์ค้าง PENDING_PAYMENT
+      // และโดน expiry cron เก็บภายใน 15 นาที — ยอมรับได้ที่สเกลร้านเดียว)
+      await db.from("orders").delete().eq("id", order.id);
+      throw ie;
+    }
 
     return json({
       order_id: order.id,
