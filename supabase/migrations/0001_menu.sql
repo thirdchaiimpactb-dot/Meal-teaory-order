@@ -61,3 +61,6 @@ create policy staff_write on menu_item_option_groups for all to authenticated us
 -- สิทธิ์ระดับตาราง (RLS เป็นตัวกรองชั้นบน): ลูกค้า anon อ่านเมนู, staff เขียนได้
 grant select on menu_categories, menu_items, option_groups, option_items, menu_item_option_groups to anon, authenticated;
 grant insert, update, delete on menu_categories, menu_items, option_groups, option_items, menu_item_option_groups to authenticated;
+
+-- service role (edge functions) ต้องได้สิทธิ์ชัดเจนเพราะ auto_expose_new_tables=false
+grant select, insert, update, delete on menu_categories, menu_items, option_groups, option_items, menu_item_option_groups to service_role;

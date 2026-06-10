@@ -17,6 +17,8 @@ language sql as $$
   on conflict (order_date) do update set last_no = daily_counters.last_no + 1
   returning last_no;
 $$;
+revoke execute on function next_order_no(date) from public;
+grant execute on function next_order_no(date) to service_role, authenticated;
 
 create table orders (
   id uuid primary key default gen_random_uuid(),
@@ -51,11 +53,12 @@ create table order_items (
   menu_item_id uuid not null references menu_items(id),
   name_snapshot text not null,
   qty int not null check (qty > 0),
-  unit_price numeric(8,2) not null,
+  unit_price numeric(8,2) not null check (unit_price >= 0),
   options jsonb not null default '[]',   -- [{"group":"เนื้อสัตว์","name":"เนื้อ","price_delta":10}]
   note text,
-  line_total numeric(8,2) not null
+  line_total numeric(8,2) not null check (line_total >= 0)
 );
+create index order_items_order_id_idx on order_items (order_id);
 
 create table shop_settings (
   id int primary key default 1 check (id = 1),  -- บังคับแถวเดียว
@@ -86,6 +89,8 @@ create policy staff_all on shop_settings for all to authenticated using (true) w
 
 -- สิทธิ์ระดับตาราง (auto_expose_new_tables=false): staff dashboard ใช้ authenticated
 grant select, insert, update, delete on customers, orders, order_items, shop_settings to authenticated;
+-- service role (edge functions) — รวม daily_counters เพื่อให้ next_order_no ทำงานได้
+grant select, insert, update, delete on customers, orders, order_items, shop_settings, daily_counters to service_role;
 
 -- สถานะร้านแบบสาธารณะ (LIFF เช็คเปิด/ปิด) — ไม่เผย promptpay_id / line_group_id
 create view public_shop_status
@@ -98,4 +103,5 @@ grant select on public_shop_status to anon, authenticated;
 alter publication supabase_realtime add table orders;
 
 -- bucket เก็บรูปสลิป (private — เข้าถึงผ่าน service role / signed URL)
-insert into storage.buckets (id, name, public) values ('slips', 'slips', false);
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('slips', 'slips', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']);
