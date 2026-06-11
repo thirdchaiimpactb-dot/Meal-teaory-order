@@ -1,4 +1,5 @@
 .env
+supabase/.env
 supabase/functions/.env
 supabase/.temp
 node_modules/
