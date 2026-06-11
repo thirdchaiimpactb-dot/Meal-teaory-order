@@ -21,6 +21,16 @@ let searchTerm = "";
 const el = (id) => document.getElementById(id);
 const isMobile = () => window.innerWidth <= 900;
 
+let refreshing = false;
+let fastPollHandle = null;
+
+function withLoading(btn, fn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "กำลังโหลด...";
+  return fn().finally(() => { btn.disabled = false; btn.textContent = orig; });
+}
+
 function openCartDrawer() {
   el("cartPanel").classList.add("drawer-open");
   el("drawerOverlay").classList.add("visible");
@@ -291,7 +301,7 @@ async function createOrder() {
     })),
   };
   const order = await api.fn("create-order", body);
-  currentOrder = { ...order, idToken: body.idToken };
+  currentOrder = { ...order, idToken: body.idToken, phone: body.phone };
   localStorage.setItem("dormOrder.lastOrder", JSON.stringify(currentOrder));
   cart = [];
   renderCart();
@@ -316,7 +326,11 @@ function showPayment(order) {
 
 async function verifySlip(dev = false) {
   if (!currentOrder) return showNotice("ยังไม่มีออเดอร์ที่ต้องตรวจสลิป", "warn");
-  const body = { idToken: currentOrder.idToken, order_id: currentOrder.order_id };
+  const body = {
+    idToken: currentOrder.idToken,
+    order_id: currentOrder.order_id,
+    ...(currentOrder.phone ? { phone: currentOrder.phone } : {}),
+  };
   if (dev) {
     body.devSlip = {
       transRef: `DEV-${Date.now()}`,
@@ -366,7 +380,8 @@ function renderStatusCard(order, items) {
 }
 
 async function refreshTracking() {
-  if (!currentOrder) return;
+  if (!currentOrder || refreshing) return;
+  refreshing = true;
   try {
     const data = await api.fn("get-order", {
       idToken: currentOrder.idToken,
@@ -386,10 +401,21 @@ async function refreshTracking() {
       card.classList.remove("hidden");
       card.innerHTML = renderStatusCard(order, data.items);
     }
+
+    // poll ถี่ขึ้น (4s) เมื่อรอร้านยืนยัน/ทำอาหาร
+    const needsFast = ["PAID", "COOKING"].includes(order.status);
+    if (needsFast && !fastPollHandle) {
+      fastPollHandle = setInterval(refreshTracking, 4000);
+    } else if (!needsFast && fastPollHandle) {
+      clearInterval(fastPollHandle);
+      fastPollHandle = null;
+    }
   } catch (e) {
     const card = el("statusCard");
     card.classList.remove("hidden");
     card.innerHTML = `<div class="notice warn" style="margin:14px">${escapeHtml(e.message)}</div>`;
+  } finally {
+    refreshing = false;
   }
 }
 
@@ -409,10 +435,17 @@ function bindEvents() {
     searchTerm = event.target.value.trim();
     renderMenu();
   });
-  el("createOrder").addEventListener("click", () => createOrder().catch((e) => showNotice(e.message, "warn")));
+  el("createOrder").addEventListener("click", () =>
+    withLoading(el("createOrder"), createOrder).catch((e) => showNotice(e.message, "warn")));
   el("clearCart").addEventListener("click", () => { cart = []; renderCart(); });
-  el("verifySlip").addEventListener("click", () => verifySlip(false).catch((e) => showNotice(e.message, "warn")));
-  el("devPay").addEventListener("click", () => verifySlip(true).catch((e) => showNotice(e.message, "warn")));
+  el("verifySlip").addEventListener("click", () =>
+    withLoading(el("verifySlip"), () => verifySlip(false)).catch((e) => showNotice(e.message, "warn")));
+  el("devPay").addEventListener("click", () =>
+    withLoading(el("devPay"), () => verifySlip(true)).catch((e) => showNotice(e.message, "warn")));
+
+  // ซ่อน devPay บน production (ต้องตั้ง DEV_BYPASS_LINE=1 ที่ Supabase)
+  const isLocal = (config.supabaseUrl || "").includes("localhost") || (config.supabaseUrl || "").includes("127.0.0.1");
+  if (!isLocal) el("devPay").style.display = "none";
   el("trackLast").addEventListener("click", () => {
     currentOrder = JSON.parse(localStorage.getItem("dormOrder.lastOrder") || "null");
     if (currentOrder) showPayment(currentOrder);
@@ -423,4 +456,4 @@ function bindEvents() {
 bindEvents();
 renderCart();
 loadMenu().catch((e) => showNotice(e.message, "warn"));
-setInterval(refreshTracking, 10000);
+setInterval(refreshTracking, 15000);

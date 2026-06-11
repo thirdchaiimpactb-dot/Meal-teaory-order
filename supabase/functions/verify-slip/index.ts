@@ -1,17 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { json, errorResponse, HttpError, CORS } from "../_shared/http.ts";
-import { resolveLineUser, pushText } from "../_shared/line.ts";
+import { resolveIdentity, pushText } from "../_shared/line.ts";
 import { verifySlipImage } from "../_shared/easyslip.ts";
 import { checkSlip, type SlipData } from "../_shared/slip-check.ts";
 import { msgNewOrderForShop } from "../_shared/messages.ts";
 
-type Body = { idToken: string; order_id: string; imageBase64?: string; devSlip?: SlipData };
+type Body = { idToken: string; order_id: string; phone?: string; imageBase64?: string; devSlip?: SlipData };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body: Body = await req.json();
-    const profile = await resolveLineUser(body.idToken);
+    const profile = await resolveIdentity(body.idToken, body.phone);
 
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: order } = await db.from("orders")
