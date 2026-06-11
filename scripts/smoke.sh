@@ -6,7 +6,7 @@ set -euo pipefail
 BASE="${BASE:-http://127.0.0.1:54321}"
 ANON_KEY="${ANON_KEY:?ใส่ ANON_KEY จาก supabase status}"
 SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:?ใส่ SERVICE_ROLE_KEY จาก supabase status}"
-TEA="${TEA:-a0000000-0000-0000-0000-000000000002}"
+TEA="${TEA:-a0000000-0000-0000-0000-000000000099}"  # นมเผือก 25 บาท ไม่มี required option
 
 PASS=0
 FAIL=0

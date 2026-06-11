@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>สั่งอาหาร | กะเพราไฟลุก</title>
+    <link rel="stylesheet" href="./assets/styles.css">
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="./config.js"></script>
+    <script type="module" src="./assets/customer.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <img class="brand-mark" src="./assets/meal-sticker.png" alt="กะเพราไฟลุก by MEAL TEAory">
+          <div>
+            <strong id="shopName">กะเพราไฟลุก by MEAL TEAory</strong>
+            <span>สั่งล่วงหน้า จ่ายพร้อมเพย์ แล้วมารับที่ร้าน</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="trackLast">ออเดอร์ล่าสุด</button>
+          <button class="secondary" id="openConfig">ตั้งค่า</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <div id="notice" class="notice hidden"></div>
+      <section class="restaurant-hero">
+        <div class="hero-copy">
+          <span class="eyebrow">MEAL TEAory Pickup</span>
+          <h1>กะเพราไฟลุก</h1>
+          <p>เลือกเมนู จ่ายผ่าน PromptPay แล้วมารับที่ร้านได้เลย</p>
+          <div class="hero-meta">
+            <span id="heroStatus" class="status-pill pending">กำลังโหลด</span>
+            <span>รับเลยหรือจองเวลา</span>
+            <span>ทำประมาณ 15 นาที</span>
+          </div>
+        </div>
+        <img class="hero-logo" src="./assets/meal-sticker.png" alt="กะเพราไฟลุก">
+      </section>
+      <section class="customer-tools">
+        <label class="search-box" for="menuSearch">
+          <span>ค้นหา</span>
+          <input id="menuSearch" placeholder="ค้นหาเมนู เช่น กะเพรา ชาเย็น ไข่ดาว">
+        </label>
+        <div class="category-tabs" id="categoryTabs"></div>
+      </section>
+      <section class="grid">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>เมนู</h2>
+              <span id="shopStatus" class="status-pill">กำลังโหลด</span>
+            </div>
+            <div class="panel-body" id="menuRoot"></div>
+          </div>
+        </div>
+
+        <aside class="panel cart">
+          <div class="panel-head">
+            <h2>ตะกร้า</h2>
+            <span class="total" id="cartTotal">0 บาท</span>
+          </div>
+          <div class="panel-body">
+            <div class="cart-lines" id="cartLines"></div>
+            <hr>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pickupType">เวลารับ</label>
+                <select id="pickupType">
+                  <option value="ASAP">รับเลย</option>
+                  <option value="SCHEDULED">เลือกเวลา</option>
+                </select>
+              </div>
+              <div class="field hidden" id="pickupTimeWrap">
+                <label for="pickupTime">เวลา</label>
+                <input id="pickupTime" type="datetime-local">
+              </div>
+              <div class="field">
+                <label for="phone">เบอร์โทร</label>
+                <input id="phone" inputmode="tel" placeholder="กรณีร้านต้องโทรตาม">
+              </div>
+              <div class="field">
+                <label for="devToken">LINE token</label>
+                <input id="devToken" value="dev:U_demo" autocomplete="off">
+              </div>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button id="createOrder">ยืนยันสั่ง</button>
+              <button class="secondary" id="clearCart">ล้างตะกร้า</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="panel hidden" id="paymentPanel" style="margin-top:18px">
+        <div class="panel-head">
+          <h2 id="paymentTitle">จ่ายเงิน</h2>
+          <span class="status-pill pending" id="paymentStatus">รอจ่าย</span>
+        </div>
+        <div class="panel-body split">
+          <div>
+            <div class="total" id="paymentTotal"></div>
+            <img class="qr" id="qrImage" alt="PromptPay QR">
+            <textarea id="qrPayload" readonly></textarea>
+          </div>
+          <div>
+            <div class="field">
+              <label for="slipFile">อัปโหลดสลิป</label>
+              <input id="slipFile" type="file" accept="image/*">
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button id="verifySlip">ตรวจสลิป</button>
+              <button class="secondary" id="devPay">ทดสอบจ่าย</button>
+            </div>
+            <div id="tracking" style="margin-top:14px"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="configDialog">
+      <form id="configForm">
+        <div class="panel-head">
+          <h2>ตั้งค่าเชื่อมต่อ</h2>
+          <button type="button" class="secondary" id="closeConfig">ปิด</button>
+        </div>
+        <div class="dialog-body form-grid">
+          <div class="field">
+            <label for="supabaseUrl">Supabase URL</label>
+            <input name="supabaseUrl" id="supabaseUrl" placeholder="http://127.0.0.1:54321">
+          </div>
+          <div class="field">
+            <label for="anonKey">Anon key</label>
+            <input name="anonKey" id="anonKey" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="liffId">LIFF ID</label>
+            <input name="liffId" id="liffId" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button type="submit">บันทึก</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

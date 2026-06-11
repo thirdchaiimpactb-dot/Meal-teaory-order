@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>หน้าร้าน | กะเพราไฟลุก</title>
+    <link rel="stylesheet" href="./assets/styles.css">
+    <script src="./config.js"></script>
+    <script type="module" src="./assets/shop.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <strong>หน้าร้าน</strong>
+          <span>คิวออเดอร์ สถานะร้าน เมนู และสรุปยอด</span>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="openConfig">ตั้งค่า</button>
+          <button class="secondary" id="logout">ออกจากระบบ</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <div id="notice" class="notice hidden"></div>
+
+      <section class="panel" id="loginPanel">
+        <div class="panel-head"><h2>เข้าสู่ระบบร้าน</h2></div>
+        <div class="panel-body form-grid">
+          <div class="field">
+            <label for="email">อีเมล</label>
+            <input id="email" type="email" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="password">รหัสผ่าน</label>
+            <input id="password" type="password" autocomplete="current-password">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button id="login">เข้าใช้งาน</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="dashboard" class="hidden">
+        <div class="metric-strip">
+          <div class="metric"><span class="muted">ออเดอร์วันนี้</span><strong id="metricOrders">0</strong></div>
+          <div class="metric"><span class="muted">ยอดขายวันนี้</span><strong id="metricSales">0</strong></div>
+          <div class="metric"><span class="muted">รอทำ</span><strong id="metricActive">0</strong></div>
+          <div class="metric"><span class="muted">รอคืนเงิน</span><strong id="metricRefund">0</strong></div>
+        </div>
+
+        <div class="toolbar">
+          <input id="search" placeholder="ค้นหาเลขออเดอร์หรือชื่อลูกค้า">
+          <select id="statusFilter">
+            <option value="">ทุกสถานะ</option>
+            <option value="PAID">จ่ายแล้ว</option>
+            <option value="COOKING">กำลังทำ</option>
+            <option value="READY">รอรับ</option>
+            <option value="REFUND_PENDING">รอคืนเงิน</option>
+            <option value="COMPLETED">รับแล้ว</option>
+          </select>
+          <button id="refresh">รีเฟรช</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-view="orders">คิวออเดอร์</button>
+          <button class="tab" data-view="settings">ตั้งค่าร้าน</button>
+          <button class="tab" data-view="menu">เมนู</button>
+        </div>
+
+        <section id="ordersView" class="shop-grid" style="margin-top:12px">
+          <div class="panel">
+            <div class="panel-head"><h3>ใหม่</h3><span class="status-pill paid">PAID</span></div>
+            <div class="panel-body" id="paidCol"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>กำลังทำ</h3><span class="status-pill cooking">COOKING</span></div>
+            <div class="panel-body" id="cookingCol"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>รอรับ/คืนเงิน</h3><span class="status-pill">READY</span></div>
+            <div class="panel-body" id="readyCol"></div>
+          </div>
+        </section>
+
+        <section id="settingsView" class="panel hidden" style="margin-top:12px">
+          <div class="panel-head"><h3>ตั้งค่าร้าน</h3></div>
+          <div class="panel-body form-grid">
+            <div class="field">
+              <label for="accepting">สถานะรับออเดอร์</label>
+              <select id="accepting">
+                <option value="true">เปิดรับ</option>
+                <option value="false">ปิดรับ</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="prepMinutes">เวลาทำโดยประมาณ</label>
+              <input id="prepMinutes" type="number" min="1">
+            </div>
+            <div class="field">
+              <label for="openTime">เวลาเปิด</label>
+              <input id="openTime" type="time">
+            </div>
+            <div class="field">
+              <label for="closeTime">เวลาปิด</label>
+              <input id="closeTime" type="time">
+            </div>
+            <div class="field">
+              <label for="promptpayId">PromptPay</label>
+              <input id="promptpayId">
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="saveSettings">บันทึกตั้งค่าร้าน</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="menuView" class="panel hidden" style="margin-top:12px">
+          <div class="panel-head"><h3>เปิด/ปิดเมนู</h3></div>
+          <div class="panel-body" id="menuAdmin"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="configDialog">
+      <form id="configForm">
+        <div class="panel-head">
+          <h2>ตั้งค่าเชื่อมต่อ</h2>
+          <button type="button" class="secondary" id="closeConfig">ปิด</button>
+        </div>
+        <div class="dialog-body form-grid">
+          <div class="field">
+            <label for="supabaseUrl">Supabase URL</label>
+            <input name="supabaseUrl" id="supabaseUrl" placeholder="http://127.0.0.1:54321">
+          </div>
+          <div class="field">
+            <label for="anonKey">Anon key</label>
+            <input name="anonKey" id="anonKey" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="liffId">LIFF ID</label>
+            <input name="liffId" id="liffId" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button type="submit">บันทึก</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
