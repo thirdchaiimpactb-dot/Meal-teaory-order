@@ -37,3 +37,9 @@ export async function resolveLineUser(idToken: string, fetchFn: typeof fetch = f
   }
   return await verifyLineIdToken(idToken, Deno.env.get("LINE_LOGIN_CHANNEL_ID")!, fetchFn);
 }
+
+export async function resolveIdentity(idToken: string, phone?: string, fetchFn: typeof fetch = fetch): Promise<LineProfile> {
+  if (idToken) return await resolveLineUser(idToken, fetchFn);
+  if (phone) return { sub: `phone:${phone.replace(/\D/g, "")}`, name: phone };
+  throw new HttpError(400, "IDENTITY_REQUIRED");
+}

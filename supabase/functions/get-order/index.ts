@@ -8,22 +8,22 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body: Body = await req.json();
-    if (!body.idToken || !body.order_id) {
-      throw new HttpError(400, "BAD_REQUEST");
-    }
+    if (!body.order_id) throw new HttpError(400, "BAD_REQUEST");
 
-    const profile = await resolveLineUser(body.idToken);
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: order, error } = await db.from("orders")
+    let q = db.from("orders")
       .select(
         "id,order_no,pickup_type,pickup_time,status,total,created_at,paid_at,accepted_at,ready_at,completed_at,reject_reason,refunded_at",
       )
-      .eq("id", body.order_id)
-      .eq("customer_id", profile.sub)
-      .maybeSingle();
+      .eq("id", body.order_id);
+    if (body.idToken) {
+      const profile = await resolveLineUser(body.idToken);
+      q = q.eq("customer_id", profile.sub);
+    }
+    const { data: order, error } = await q.maybeSingle();
     if (error) throw error;
     if (!order) throw new HttpError(404, "ORDER_NOT_FOUND");
 

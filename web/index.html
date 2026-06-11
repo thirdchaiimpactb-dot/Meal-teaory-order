@@ -59,7 +59,8 @@
           </div>
         </div>
 
-        <aside class="panel cart">
+        <aside class="panel cart" id="cartPanel">
+          <div class="drawer-handle-bar"></div>
           <div class="panel-head">
             <h2>ตะกร้า</h2>
             <span class="total" id="cartTotal">0 บาท</span>
@@ -67,28 +68,12 @@
           <div class="panel-body">
             <div class="cart-lines" id="cartLines"></div>
             <hr>
-            <div class="form-grid">
-              <div class="field">
-                <label for="pickupType">เวลารับ</label>
-                <select id="pickupType">
-                  <option value="ASAP">รับเลย</option>
-                  <option value="SCHEDULED">เลือกเวลา</option>
-                </select>
-              </div>
-              <div class="field hidden" id="pickupTimeWrap">
-                <label for="pickupTime">เวลา</label>
-                <input id="pickupTime" type="datetime-local">
-              </div>
-              <div class="field">
-                <label for="phone">เบอร์โทร</label>
-                <input id="phone" inputmode="tel" placeholder="กรณีร้านต้องโทรตาม">
-              </div>
-              <div class="field">
-                <label for="devToken">LINE token</label>
-                <input id="devToken" value="dev:U_demo" autocomplete="off">
-              </div>
+            <div class="field" style="margin-bottom:10px">
+              <label for="phone">เบอร์โทร <span class="muted">(จำเป็น)</span></label>
+              <input id="phone" inputmode="tel" placeholder="สำหรับแจ้งเมื่ออาหารพร้อม">
             </div>
-            <div class="row" style="margin-top:12px">
+            <input id="devToken" type="hidden" value="">
+            <div class="row">
               <button id="createOrder">ยืนยันสั่ง</button>
               <button class="secondary" id="clearCart">ล้างตะกร้า</button>
             </div>
@@ -97,9 +82,13 @@
       </section>
 
       <section class="panel hidden" id="paymentPanel" style="margin-top:18px">
+        <div class="drawer-handle-bar"></div>
         <div class="panel-head">
           <h2 id="paymentTitle">จ่ายเงิน</h2>
-          <span class="status-pill pending" id="paymentStatus">รอจ่าย</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="status-pill pending" id="paymentStatus">รอจ่าย</span>
+            <button class="secondary mobile-only" id="closePayment" style="min-height:34px;padding:0 10px;font-size:13px">✕</button>
+          </div>
         </div>
         <div class="panel-body split" id="paymentSection">
           <div>
@@ -121,6 +110,15 @@
         <div id="statusCard" class="hidden"></div>
       </section>
     </main>
+
+    <div id="drawerOverlay"></div>
+    <div id="cartBar" class="hidden">
+      <div id="cartBarInfo">
+        <span id="cartBarCount"></span>
+        <span id="cartBarTotal"></span>
+      </div>
+      <button id="openDrawerBtn">ดูตะกร้า ↑</button>
+    </div>
 
     <dialog id="configDialog">
       <form id="configForm">

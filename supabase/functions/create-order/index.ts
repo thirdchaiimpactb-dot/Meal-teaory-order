@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { CORS, errorResponse, HttpError, json } from "../_shared/http.ts";
-import { resolveLineUser } from "../_shared/line.ts";
+import { resolveIdentity } from "../_shared/line.ts";
 import {
   type CartItem,
   type MenuIndex,
@@ -34,9 +34,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body: Body = await req.json();
-    if (!body.idToken || !Array.isArray(body.items)) {
-      throw new HttpError(400, "BAD_REQUEST");
-    }
+    if (!Array.isArray(body.items)) throw new HttpError(400, "BAD_REQUEST");
+    if (!body.idToken && !body.phone) throw new HttpError(400, "IDENTITY_REQUIRED");
     if (body.pickup_type === "SCHEDULED" && !body.pickup_time) {
       throw new HttpError(400, "PICKUP_TIME_REQUIRED");
     }
@@ -56,7 +55,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const profile = await resolveLineUser(body.idToken);
+    const profile = await resolveIdentity(body.idToken, body.phone);
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

@@ -19,6 +19,36 @@ let activeCategoryId = "";
 let searchTerm = "";
 
 const el = (id) => document.getElementById(id);
+const isMobile = () => window.innerWidth <= 900;
+
+function openCartDrawer() {
+  el("cartPanel").classList.add("drawer-open");
+  el("drawerOverlay").classList.add("visible");
+  el("cartBar").classList.add("hidden");
+}
+
+function closeCartDrawer() {
+  el("cartPanel").classList.remove("drawer-open");
+  el("drawerOverlay").classList.remove("visible");
+  if (cart.length > 0) el("cartBar").classList.remove("hidden");
+}
+
+function openPaymentDrawer() {
+  el("paymentPanel").classList.remove("hidden");
+  el("paymentPanel").offsetHeight; // force reflow
+  el("paymentPanel").classList.add("drawer-open");
+  el("drawerOverlay").classList.add("visible");
+}
+
+function closePaymentDrawer() {
+  el("paymentPanel").classList.remove("drawer-open");
+  el("drawerOverlay").classList.remove("visible");
+  setTimeout(() => {
+    if (!el("paymentPanel").classList.contains("drawer-open")) {
+      el("paymentPanel").classList.add("hidden");
+    }
+  }, 330);
+}
 
 function showNotice(message, type = "") {
   const box = el("notice");
@@ -168,6 +198,17 @@ function renderCart() {
   const root = el("cartLines");
   const total = cart.reduce((sum, item) => sum + item.unit * item.qty, 0);
   el("cartTotal").textContent = money(total);
+  if (isMobile()) {
+    const bar = el("cartBar");
+    if (cart.length > 0 && !el("cartPanel").classList.contains("drawer-open")) {
+      el("cartBarCount").textContent = `${cart.length} รายการ`;
+      el("cartBarTotal").textContent = money(total);
+      bar.classList.remove("hidden");
+    } else if (cart.length === 0) {
+      bar.classList.add("hidden");
+      closeCartDrawer();
+    }
+  }
   root.innerHTML = cart.map((item, index) => {
     const names = item.optionItemIds.map((id) => menu.options.find((o) => o.id === id)?.name).filter(Boolean);
     return `
@@ -193,12 +234,17 @@ function renderCart() {
 
 async function getIdToken() {
   if (config.liffId && window.liff) {
-    await window.liff.init({ liffId: config.liffId });
-    if (!window.liff.isLoggedIn()) window.liff.login();
-    const token = window.liff.getIDToken();
-    if (token) return token;
+    try {
+      await window.liff.init({ liffId: config.liffId });
+      if (window.liff.isLoggedIn()) {
+        const token = window.liff.getIDToken();
+        if (token) return token;
+      }
+    } catch (_) {
+      // LIFF unavailable — fall through to phone-based identity
+    }
   }
-  return el("devToken").value.trim();
+  return "";
 }
 
 async function loadMenu() {
@@ -228,15 +274,15 @@ async function loadMenu() {
 
 async function createOrder() {
   if (!cart.length) return showNotice("กรุณาเลือกเมนูก่อน", "warn");
-  const pickupType = el("pickupType").value;
-  if (pickupType === "SCHEDULED" && !el("pickupTime").value) {
-    return showNotice("กรุณาเลือกเวลารับ", "warn");
+  const idToken = await getIdToken();
+  const phone = el("phone").value.trim();
+  if (!idToken && !phone) {
+    return showNotice("กรุณาใส่เบอร์โทรเพื่อให้ร้านติดต่อกลับได้", "warn");
   }
   const body = {
-    idToken: await getIdToken(),
-    pickup_type: pickupType,
-    phone: el("phone").value.trim() || undefined,
-    pickup_time: pickupType === "SCHEDULED" ? new Date(el("pickupTime").value).toISOString() : undefined,
+    idToken,
+    pickup_type: "ASAP",
+    phone: phone || undefined,
     items: cart.map((item) => ({
       menuItemId: item.menuItemId,
       qty: item.qty,
@@ -254,13 +300,18 @@ async function createOrder() {
 }
 
 function showPayment(order) {
-  el("paymentPanel").classList.remove("hidden");
   el("paymentTitle").textContent = `ออเดอร์ #${order.order_no}`;
   el("paymentTotal").textContent = money(order.total);
   el("qrPayload").value = order.qr_payload;
   el("qrImage").src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(order.qr_payload)}`;
   refreshTracking();
-  el("paymentPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (isMobile()) {
+    closeCartDrawer();
+    openPaymentDrawer();
+  } else {
+    el("paymentPanel").classList.remove("hidden");
+    el("paymentPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 async function verifySlip(dev = false) {
@@ -348,9 +399,12 @@ function bindEvents() {
     api = new ApiClient(config);
     loadMenu().catch((e) => showNotice(e.message, "warn"));
   });
-  el("pickupType").addEventListener("change", () => {
-    el("pickupTimeWrap").classList.toggle("hidden", el("pickupType").value !== "SCHEDULED");
+  el("openDrawerBtn").addEventListener("click", openCartDrawer);
+  el("drawerOverlay").addEventListener("click", () => {
+    if (el("cartPanel").classList.contains("drawer-open")) closeCartDrawer();
+    else closePaymentDrawer();
   });
+  el("closePayment").addEventListener("click", closePaymentDrawer);
   el("menuSearch").addEventListener("input", (event) => {
     searchTerm = event.target.value.trim();
     renderMenu();
