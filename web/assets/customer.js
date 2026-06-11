@@ -48,12 +48,20 @@ function itemUnitPrice(item, optionIds) {
   return Number(item.base_price) + delta;
 }
 
+function activeCategoryIds() {
+  return new Set(
+    menu.items.filter((i) => i.is_available).map((i) => i.category_id)
+  );
+}
+
 function renderCategoryTabs() {
   const root = el("categoryTabs");
   if (!root) return;
+  const hasItems = activeCategoryIds();
+  const visibleCats = menu.categories.filter((c) => hasItems.has(c.id));
   const tabs = [
     `<button class="category-chip ${activeCategoryId ? "" : "active"}" data-category="">ทั้งหมด</button>`,
-    ...menu.categories.map((cat) =>
+    ...visibleCats.map((cat) =>
       `<button class="category-chip ${activeCategoryId === cat.id ? "active" : ""}" data-category="${cat.id}">${escapeHtml(cat.name)}</button>`
     ),
   ];
@@ -280,6 +288,32 @@ async function verifySlip(dev = false) {
   await refreshTracking();
 }
 
+function renderStatusCard(order, items) {
+  const STATUS_CONFIG = {
+    PAID:            { cls: "status-card-paid",     icon: "✅", title: "ร้านได้รับออเดอร์แล้ว",  sub: "รอยืนยันจากร้านสักครู่..." },
+    COOKING:         { cls: "status-card-cooking",  icon: "🔥", title: "กำลังทำอาหาร",          sub: "รออีกสักครู่นะครับ" },
+    READY:           { cls: "status-card-ready",    icon: "🍽️", title: "ไปรับได้เลย!",          sub: "อาหารพร้อมแล้ว มารับที่ร้านได้เลยครับ" },
+    COMPLETED:       { cls: "status-card-done",     icon: "🙏", title: "รับของแล้ว ขอบคุณ!",    sub: "ขอบคุณที่ใช้บริการ" },
+    REFUND_PENDING:  { cls: "status-card-refund",   icon: "💸", title: "รอคืนเงิน",             sub: "" },
+    REFUNDED:        { cls: "status-card-refund",   icon: "💸", title: "คืนเงินแล้ว",           sub: "" },
+    REJECTED:        { cls: "status-card-refund",   icon: "❌", title: "ออเดอร์ถูกปฏิเสธ",      sub: "" },
+  };
+  const cfg = STATUS_CONFIG[order.status] || { cls: "", icon: "📋", title: statusLabel(order.status), sub: "" };
+  const itemsHtml = items.map((i) =>
+    `<li>${escapeHtml(i.name_snapshot)} x${i.qty} · ${money(i.line_total)}</li>`
+  ).join("");
+  return `
+    <div class="status-card ${cfg.cls}">
+      <div class="status-card-icon">${cfg.icon}</div>
+      <div class="status-card-title">${cfg.title}</div>
+      ${cfg.sub ? `<div class="status-card-sub">${cfg.sub}</div>` : ""}
+      ${order.reject_reason ? `<div class="status-card-sub">เหตุผล: ${escapeHtml(order.reject_reason)}</div>` : ""}
+      <div class="status-card-meta">ออเดอร์ #${order.order_no} · ${money(order.total)} · ${order.pickup_type === "SCHEDULED" ? `เวลารับ ${dateTime(order.pickup_time)}` : "รับเลย"}</div>
+      <ul class="item-list">${itemsHtml}</ul>
+    </div>
+  `;
+}
+
 async function refreshTracking() {
   if (!currentOrder) return;
   try {
@@ -290,17 +324,21 @@ async function refreshTracking() {
     const order = data.order;
     el("paymentStatus").textContent = statusLabel(order.status);
     el("paymentStatus").className = `status-pill ${statusClass(order.status)}`;
-    el("tracking").innerHTML = `
-      <h3>สถานะ</h3>
-      <p><strong>${statusLabel(order.status)}</strong> · สร้างเมื่อ ${dateTime(order.created_at)}</p>
-      ${order.pickup_type === "SCHEDULED" ? `<p>เวลารับ ${dateTime(order.pickup_time)}</p>` : `<p>เวลารับ รับเลย</p>`}
-      ${order.reject_reason ? `<p>เหตุผล: ${escapeHtml(order.reject_reason)}</p>` : ""}
-      <ul class="item-list">
-        ${data.items.map((i) => `<li>${escapeHtml(i.name_snapshot)} x${i.qty} · ${money(i.line_total)}</li>`).join("")}
-      </ul>
-    `;
+
+    const isPendingPayment = order.status === "PENDING_PAYMENT";
+    el("paymentSection").classList.toggle("hidden", !isPendingPayment);
+    const card = el("statusCard");
+    if (isPendingPayment) {
+      card.classList.add("hidden");
+      card.innerHTML = "";
+    } else {
+      card.classList.remove("hidden");
+      card.innerHTML = renderStatusCard(order, data.items);
+    }
   } catch (e) {
-    el("tracking").innerHTML = `<div class="notice warn">${escapeHtml(e.message)}</div>`;
+    const card = el("statusCard");
+    card.classList.remove("hidden");
+    card.innerHTML = `<div class="notice warn" style="margin:14px">${escapeHtml(e.message)}</div>`;
   }
 }
 

@@ -101,7 +101,7 @@
           <h2 id="paymentTitle">จ่ายเงิน</h2>
           <span class="status-pill pending" id="paymentStatus">รอจ่าย</span>
         </div>
-        <div class="panel-body split">
+        <div class="panel-body split" id="paymentSection">
           <div>
             <div class="total" id="paymentTotal"></div>
             <img class="qr" id="qrImage" alt="PromptPay QR">
@@ -116,9 +116,9 @@
               <button id="verifySlip">ตรวจสลิป</button>
               <button class="secondary" id="devPay">ทดสอบจ่าย</button>
             </div>
-            <div id="tracking" style="margin-top:14px"></div>
           </div>
         </div>
+        <div id="statusCard" class="hidden"></div>
       </section>
     </main>
 

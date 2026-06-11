@@ -597,6 +597,49 @@ textarea {
   gap: 12px;
 }
 
+.status-card {
+  padding: 28px 20px 20px;
+  text-align: center;
+  border-radius: 0 0 8px 8px;
+}
+
+.status-card-icon {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.status-card-title {
+  font-size: 26px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.status-card-sub {
+  font-size: 15px;
+  margin-bottom: 8px;
+  opacity: .85;
+}
+
+.status-card-meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 10px 0 8px;
+}
+
+.status-card .item-list {
+  text-align: left;
+  max-width: 360px;
+  margin: 10px auto 0;
+}
+
+.status-card-paid    { background: #fff9e6; }
+.status-card-cooking { background: #eff6ff; }
+.status-card-ready   { background: #e8f9ef; }
+.status-card-ready .status-card-title { color: #0f5c35; font-size: 34px; }
+.status-card-done    { background: #f5f5f0; }
+.status-card-refund  { background: #fff1f0; }
+
 dialog {
   width: min(680px, calc(100vw - 30px));
   border: 1px solid var(--line);
