@@ -107,8 +107,11 @@ export class ApiClient {
   }
 
   async fn(name, body, authToken = "") {
-    const headers = { "Content-Type": "application/json" };
-    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const headers = {
+      "Content-Type": "application/json",
+      "apikey": this.config.anonKey,
+      "Authorization": `Bearer ${authToken || this.config.anonKey}`,
+    };
     const res = await fetch(`${this.config.supabaseUrl}/functions/v1/${name}`, {
       method: "POST",
       headers,
