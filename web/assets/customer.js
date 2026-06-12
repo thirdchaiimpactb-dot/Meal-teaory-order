@@ -284,6 +284,10 @@ async function loadMenu() {
 
 async function createOrder() {
   if (!cart.length) return showNotice("กรุณาเลือกเมนูก่อน", "warn");
+  const total = cart.reduce((sum, item) => sum + item.unit * item.qty, 0);
+  if (total <= 0) {
+    return showNotice("ยอดสั่งซื้อต้องมากกว่า 0 บาท — กรุณาเลือกเมนูที่มีราคาเพิ่ม", "warn");
+  }
   const idToken = await getIdToken();
   const phone = el("phone").value.trim();
   if (!idToken && !phone) {
