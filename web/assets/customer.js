@@ -329,6 +329,7 @@ async function verifySlip(dev = false) {
   const body = {
     idToken: currentOrder.idToken,
     order_id: currentOrder.order_id,
+    order_token: currentOrder.order_token,
     ...(currentOrder.phone ? { phone: currentOrder.phone } : {}),
   };
   if (dev) {
@@ -386,6 +387,7 @@ async function refreshTracking() {
     const data = await api.fn("get-order", {
       idToken: currentOrder.idToken,
       order_id: currentOrder.order_id,
+      order_token: currentOrder.order_token,
     });
     const order = data.order;
     el("paymentStatus").textContent = statusLabel(order.status);

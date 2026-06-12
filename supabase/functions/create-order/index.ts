@@ -35,7 +35,9 @@ Deno.serve(async (req) => {
   try {
     const body: Body = await req.json();
     if (!Array.isArray(body.items)) throw new HttpError(400, "BAD_REQUEST");
-    if (!body.idToken && !body.phone) throw new HttpError(400, "IDENTITY_REQUIRED");
+    if (!body.idToken && !body.phone) {
+      throw new HttpError(400, "IDENTITY_REQUIRED");
+    }
     if (body.pickup_type === "SCHEDULED" && !body.pickup_time) {
       throw new HttpError(400, "PICKUP_TIME_REQUIRED");
     }
@@ -77,17 +79,29 @@ Deno.serve(async (req) => {
 
     // 2) โหลดเมนูเฉพาะที่สั่ง สร้าง MenuIndex แล้วคิดราคาฝั่ง server
     const itemIds = [...new Set(body.items.map((i) => i.menuItemId))];
-    const [{ data: items, error: me1 }, { data: links, error: me2 }] = await Promise.all([
-      db.from("menu_items").select("id,name,base_price,is_available").in("id", itemIds),
-      db.from("menu_item_option_groups").select("menu_item_id,option_group_id").in("menu_item_id", itemIds),
-    ]);
+    const [{ data: items, error: me1 }, { data: links, error: me2 }] =
+      await Promise.all([
+        db.from("menu_items").select("id,name,base_price,is_available").in(
+          "id",
+          itemIds,
+        ),
+        db.from("menu_item_option_groups").select(
+          "menu_item_id,option_group_id",
+        ).in("menu_item_id", itemIds),
+      ]);
     if (me1 || me2) throw (me1 ?? me2);
 
     const groupIds = [...new Set((links ?? []).map((l) => l.option_group_id))];
-    const [{ data: groups, error: me3 }, { data: options, error: me4 }] = await Promise.all([
-      db.from("option_groups").select("id,name,is_required,max_select").in("id", groupIds),
-      db.from("option_items").select("id,group_id,name,price_delta,is_available").in("group_id", groupIds),
-    ]);
+    const [{ data: groups, error: me3 }, { data: options, error: me4 }] =
+      await Promise.all([
+        db.from("option_groups").select("id,name,is_required,max_select").in(
+          "id",
+          groupIds,
+        ),
+        db.from("option_items").select(
+          "id,group_id,name,price_delta,is_available",
+        ).in("group_id", groupIds),
+      ]);
     if (me3 || me4) throw (me3 ?? me4);
 
     const menu: MenuIndex = {
@@ -95,7 +109,9 @@ Deno.serve(async (req) => {
         name: m.name,
         basePrice: Number(m.base_price),
         isAvailable: m.is_available,
-        groupIds: (links ?? []).filter((l) => l.menu_item_id === m.id).map((l) => l.option_group_id),
+        groupIds: (links ?? []).filter((l) => l.menu_item_id === m.id).map((
+          l,
+        ) => l.option_group_id),
       }])),
       groups: Object.fromEntries((groups ?? []).map((g) => [g.id, {
         name: g.name,
@@ -119,9 +135,12 @@ Deno.serve(async (req) => {
     });
     if (ce) throw ce;
 
-    const { data: orderNo, error: ne } = await db.rpc("next_order_no", { d: date });
+    const { data: orderNo, error: ne } = await db.rpc("next_order_no", {
+      d: date,
+    });
     if (ne) throw ne;
     const qr = promptPayPayload(settings.promptpay_id, priced.total);
+    const orderAccessToken = crypto.randomUUID();
 
     const { data: order, error: oe } = await db.from("orders").insert({
       order_date: date,
@@ -132,6 +151,7 @@ Deno.serve(async (req) => {
       total: priced.total,
       qr_payload: qr,
       promptpay_id: settings.promptpay_id,
+      order_access_token: orderAccessToken,
     }).select("id,order_no,total,created_at").single();
     if (oe) throw oe;
 
@@ -159,6 +179,7 @@ Deno.serve(async (req) => {
     return json({
       order_id: order.id,
       order_no: order.order_no,
+      order_token: orderAccessToken,
       total: Number(order.total),
       qr_payload: qr,
       payment_timeout_minutes: settings.payment_timeout_minutes,
