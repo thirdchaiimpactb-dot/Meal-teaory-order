@@ -18,7 +18,65 @@ let orderItems = [];
 let settings = null;
 let menuItems = [];
 
+// --- ระบบแจ้งเตือนออเดอร์ใหม่ ---
+let alertsOn = false;
+let audioCtx = null;
+const seenPaidIds = new Set(); // order id ที่เคยเห็นสถานะ PAID แล้ว (กันเตือนซ้ำ)
+let alertPrimed = false; // โหลดรอบแรกยังไม่เตือน (กันเตือนออเดอร์เก่าทั้งกอง)
+const BASE_TITLE = "หน้าร้าน | กะเพราไฟลุก";
+
 const el = (id) => document.getElementById(id);
+
+function enableAlerts() {
+  // เบราว์เซอร์ต้องมี user gesture ก่อนถึงเล่นเสียง/ขอสิทธิ์ได้
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_) { /* บางเบราว์เซอร์ไม่รองรับ — ข้ามได้ */ }
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+  alertsOn = true;
+  el("enableAlerts").textContent = "🔔 เสียงเตือนเปิดอยู่";
+  el("enableAlerts").disabled = true;
+  beep(); // เล่นเสียงสั้น ๆ ยืนยันว่าเปิดได้แล้ว
+  showNotice("เปิดเสียงแจ้งเตือนแล้ว จะเด้งเตือนเมื่อมีออเดอร์ใหม่", "good");
+}
+
+function beep() {
+  if (!audioCtx) return;
+  // บี๊บ 2 จังหวะให้สังเกตง่าย
+  const now = audioCtx.currentTime;
+  [0, 0.18].forEach((offset) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, now + offset);
+    gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now + offset);
+    osc.stop(now + offset + 0.16);
+  });
+}
+
+function notifyNewOrders(newOrders) {
+  beep();
+  const count = newOrders.length;
+  const first = newOrders[0];
+  const title = count === 1 ? `ออเดอร์ใหม่ #${first.order_no}` : `มีออเดอร์ใหม่ ${count} รายการ`;
+  const detail = count === 1 ? `${money(first.total)} · กดรับในหน้าร้าน` : "กดรับในหน้าร้าน";
+  if ("Notification" in window && Notification.permission === "granted") {
+    const n = new Notification(title, { body: detail, tag: "dorm-new-order", renotify: true });
+    n.onclick = () => { window.focus(); n.close(); };
+  }
+}
+
+function updateTabTitle() {
+  const pending = orders.filter((o) => o.status === "PAID").length;
+  document.title = pending > 0 ? `(${pending}) 🔔 ออเดอร์ใหม่!` : BASE_TITLE;
+}
 
 function showNotice(message, type = "") {
   const box = el("notice");
@@ -68,10 +126,21 @@ async function loadDashboard() {
   orderItems = ids.length
     ? await api.rest(`order_items?select=*&order_id=in.(${ids.join(",")})&order=id.asc`)
     : [];
+  detectNewOrders();
   renderMetrics();
   renderOrders();
   renderSettings();
   renderMenuAdmin();
+  updateTabTitle();
+}
+
+function detectNewOrders() {
+  const paid = orders.filter((o) => o.status === "PAID");
+  const fresh = paid.filter((o) => !seenPaidIds.has(o.id));
+  paid.forEach((o) => seenPaidIds.add(o.id));
+  // รอบแรกแค่จำไว้ ไม่เตือน (กันเด้งออเดอร์เก่ารัว ๆ ตอนเปิดหน้า)
+  if (alertPrimed && alertsOn && fresh.length > 0) notifyNewOrders(fresh);
+  alertPrimed = true;
 }
 
 function orderTotalForMetric(order) {
@@ -155,6 +224,11 @@ async function changeStatus(orderId, action) {
     const reason = prompt("เหตุผลที่ปฏิเสธออเดอร์");
     if (!reason) return;
     body.reject_reason = reason;
+  }
+  if (action === "MANUAL_PAID") {
+    const reason = prompt("เหตุผลที่ยืนยันสลิปเอง");
+    if (!reason) return;
+    body.manual_paid_reason = reason;
   }
   await api.fn("update-order-status", body, session.access_token);
   showNotice("อัปเดตสถานะแล้ว", "good");
@@ -250,6 +324,7 @@ function bindEvents() {
     api = new ApiClient(config, session?.access_token);
     loadDashboard().catch((e) => showNotice(e.message, "warn"));
   });
+  el("enableAlerts").addEventListener("click", enableAlerts);
   el("login").addEventListener("click", () => login().catch((e) => showNotice(e.message, "warn")));
   el("logout").addEventListener("click", () => {
     session = null;
@@ -266,6 +341,7 @@ function bindEvents() {
 
 bindEvents();
 loadDashboard().catch((e) => showNotice(e.message, "warn"));
+// poll ต่อเนื่องแม้สลับแท็บไปทำอย่างอื่น เพื่อให้เสียง/แจ้งเตือนเด้งทันแม้ไม่ได้จ้องจอ
 setInterval(() => {
-  if (session?.access_token && !document.hidden) loadDashboard().catch(() => {});
-}, 8000);
+  if (session?.access_token) loadDashboard().catch(() => {});
+}, 5000);
